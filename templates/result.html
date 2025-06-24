@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+<head><title>Documenti Generati</title></head>
+<body>
+  <h2>Documenti Generati</h2>
+  <ul>
+    {% for file in files %}
+      <li><a href="{{ url_for('download', filename=file) }}">{{ file }}</a></li>
+    {% endfor %}
+  </ul>
+  <a href="{{ url_for('index') }}">Torna</a>
+</body>
+</html>

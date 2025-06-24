@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head><title>Genera Documenti</title></head>
+<body>
+  <h2>Generatore Documenti</h2>
+  <form method="post" enctype="multipart/form-data">
+    Excel file: <input type="file" name="excel"><br>
+    Word template: <input type="file" name="word"><br>
+    Prefisso nome file: <input name="prefix"><br>
+    Intervallo righe (es. 2-9): <input name="range_rows"><br>
+    Righe specifiche (es. 2,4,10): <input name="specific_rows"><br>
+    <input type="submit" value="Genera">
+  </form>
+  <a href="{{ url_for('logout') }}">Logout</a>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul>{% for msg in messages %}<li>{{ msg }}</li>{% endfor %}</ul>
+    {% endif %}
+  {% endwith %}
+</body>
+</html>
