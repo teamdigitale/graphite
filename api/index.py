@@ -1,0 +1,96 @@
+
+from flask import Flask, request, render_template, redirect, url_for, session, send_file
+import os
+import pandas as pd
+from docx import Document
+from werkzeug.utils import secure_filename
+from vercel_wsgi import handle_request
+
+app = Flask(__name__)
+app.secret_key = "supersecretkey"
+UPLOAD_FOLDER = "/tmp"
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
+@app.route("/", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        if request.form["username"] == "admin" and request.form["password"] == "password":
+            session["logged_in"] = True
+            return redirect(url_for("upload"))
+        else:
+            return render_template("login.html", error="Credenziali non valide")
+    return render_template("login.html")
+
+@app.route("/upload", methods=["GET", "POST"])
+def upload():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        excel = request.files.get("excel")
+        word = request.files.get("word")
+        prefix = request.form.get("prefix", "")
+        range_rows = request.form.get("range_rows", "")
+        specific_rows = request.form.get("specific_rows", "")
+
+        if not excel or not word:
+            return "File mancante", 400
+
+        excel_filename = secure_filename(excel.filename)
+        word_filename = secure_filename(word.filename)
+        excel_path = os.path.join(app.config["UPLOAD_FOLDER"], excel_filename)
+        word_path = os.path.join(app.config["UPLOAD_FOLDER"], word_filename)
+        excel.save(excel_path)
+        word.save(word_path)
+
+        df = pd.read_excel(excel_path)
+
+        rows_to_process = set()
+        if range_rows:
+            try:
+                start, end = map(int, range_rows.split("-"))
+                rows_to_process.update(range(start - 1, end))  # -1 per indicizzazione
+            except:
+                pass
+        if specific_rows:
+            try:
+                rows_to_process.update(int(i)-1 for i in specific_rows.split(","))
+            except:
+                pass
+
+        if not rows_to_process:
+            rows_to_process = range(len(df))
+
+        output_files = []
+        output_dir = os.path.join(app.config["UPLOAD_FOLDER"], "output_docs")
+        os.makedirs(output_dir, exist_ok=True)
+
+        for idx in rows_to_process:
+            if idx >= len(df):
+                continue
+            row = df.iloc[idx]
+            doc = Document(word_path)
+            for paragraph in doc.paragraphs:
+                for key, value in row.items():
+                    paragraph.text = paragraph.text.replace(f"{{{{{key}}}}}", str(value))
+            for table in doc.tables:
+                for row_table in table.rows:
+                    for cell in row_table.cells:
+                        for key, value in row.items():
+                            cell.text = cell.text.replace(f"{{{{{key}}}}}", str(value))
+            filename = f"{prefix}{row.iloc[0]}_{idx}.docx"
+            filepath = os.path.join(output_dir, filename)
+            doc.save(filepath)
+            output_files.append(filepath)
+
+        zip_path = os.path.join(app.config["UPLOAD_FOLDER"], "output.zip")
+        with zipfile.ZipFile(zip_path, "w") as zipf:
+            for file in output_files:
+                zipf.write(file, os.path.basename(file))
+
+        return send_file(zip_path, as_attachment=True)
+
+    return render_template("upload.html")
+
+def handler(event, context):
+    return handle_request(app, event, context)

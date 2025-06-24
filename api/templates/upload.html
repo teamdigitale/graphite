@@ -1,0 +1,16 @@
+
+<!DOCTYPE html>
+<html>
+<head><title>Upload</title></head>
+<body>
+  <h2>Carica i tuoi file</h2>
+  <form method="post" enctype="multipart/form-data">
+    Excel file: <input type="file" name="excel"><br>
+    Word template: <input type="file" name="word"><br>
+    Prefisso file: <input type="text" name="prefix"><br>
+    Range righe (es. 2-5): <input type="text" name="range_rows"><br>
+    Righe specifiche (es. 1,3,7): <input type="text" name="specific_rows"><br>
+    <button type="submit">Genera</button>
+  </form>
+</body>
+</html>
