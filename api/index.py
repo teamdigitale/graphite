@@ -10,15 +10,14 @@ import base64
 app = Flask(__name__)
 app.secret_key = "secret"
 UPLOAD_FOLDER = "/tmp"
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-def check_auth(auth_header):
-    """Controlla se l'header Authorization è valido rispetto a BASIC_AUTH_PASSWORDS"""
+# --- AUTENTICAZIONE BASIC ---
+def check_auth(auth_header: str) -> bool:
+    """Verifica header Basic Auth rispetto a variabili ambiente BASIC_AUTH_PASSWORDS"""
     if not auth_header or not auth_header.startswith("Basic "):
         return False
 
     try:
-        # Decodifica credenziali da header base64
         encoded = auth_header.split(" ", 1)[1].strip()
         decoded = base64.b64decode(encoded).decode("utf-8")
         user_input, pwd_input = decoded.split(":", 1)
@@ -26,18 +25,12 @@ def check_auth(auth_header):
         return False
 
     valid_pairs = os.environ.get("BASIC_AUTH_PASSWORDS", "")
-    for line in valid_pairs.strip().split():
-        if ":" in line:
-            valid_user, valid_pwd = line.split(":", 1)
+    for pair in valid_pairs.strip().split():
+        if ":" in pair:
+            valid_user, valid_pwd = pair.split(":", 1)
             if user_input == valid_user and pwd_input == valid_pwd:
                 return True
     return False
-
-def authenticate():
-    return Response(
-        "Accesso richiesto", 401,
-        {"WWW-Authenticate": 'Basic realm="Login Required"'}
-    )
 
 def requires_auth(f):
     @wraps(f)
@@ -51,6 +44,59 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+# --- GENERAZIONE DOCUMENTI ---
+def generate_documents(excel_path, word_path, prefix, selected_rows):
+    df = pd.read_excel(excel_path)
+    output_dir = os.path.join(UPLOAD_FOLDER, "output_docs")
+    os.makedirs(output_dir, exist_ok=True)
+    output_files = []
+
+    for idx in selected_rows:
+        if idx >= len(df):
+            continue
+        row = df.iloc[idx]
+        doc = Document(word_path)
+
+        # Sostituzione nei paragrafi
+        for paragraph in doc.paragraphs:
+            for key, value in row.items():
+                paragraph.text = paragraph.text.replace(f"{{{{{key}}}}}", str(value))
+
+        # Sostituzione nelle tabelle
+        for table in doc.tables:
+            for row_table in table.rows:
+                for cell in row_table.cells:
+                    for key, value in row.items():
+                        cell.text = cell.text.replace(f"{{{{{key}}}}}", str(value))
+
+        filename = f"{prefix}{row.iloc[0]}_{idx}.docx"
+        filepath = os.path.join(output_dir, filename)
+        doc.save(filepath)
+        output_files.append(filepath)
+
+    return output_files
+
+def parse_row_selection(range_rows, specific_rows, total_rows):
+    selected = set()
+
+    # Intervallo tipo "2-10"
+    if range_rows:
+        try:
+            start, end = map(int, range_rows.split("-"))
+            selected.update(range(start - 1, end))
+        except Exception:
+            pass
+
+    # Righe specifiche tipo "3,7,9"
+    if specific_rows:
+        try:
+            selected.update(int(i) - 1 for i in specific_rows.split(",") if i.strip().isdigit())
+        except Exception:
+            pass
+
+    return selected if selected else range(total_rows)
+
+# --- ROUTE PRINCIPALE ---
 @app.route("/", methods=["GET", "POST"])
 @requires_auth
 def upload():
@@ -62,7 +108,7 @@ def upload():
         specific_rows = request.form.get("specific_rows", "")
 
         if not excel or not word:
-            return "File mancante", 400
+            return "File Excel o Word mancante.", 400
 
         excel_path = os.path.join(UPLOAD_FOLDER, secure_filename(excel.filename))
         word_path = os.path.join(UPLOAD_FOLDER, secure_filename(word.filename))
@@ -70,45 +116,8 @@ def upload():
         word.save(word_path)
 
         df = pd.read_excel(excel_path)
-        rows_to_process = set()
-
-        if range_rows:
-            try:
-                start, end = map(int, range_rows.split("-"))
-                rows_to_process.update(range(start - 1, end))
-            except:
-                pass
-
-        if specific_rows:
-            try:
-                rows_to_process.update(int(i)-1 for i in specific_rows.split(","))
-            except:
-                pass
-
-        if not rows_to_process:
-            rows_to_process = range(len(df))
-
-        output_dir = os.path.join(UPLOAD_FOLDER, "output_docs")
-        os.makedirs(output_dir, exist_ok=True)
-        output_files = []
-
-        for idx in rows_to_process:
-            if idx >= len(df):
-                continue
-            row = df.iloc[idx]
-            doc = Document(word_path)
-            for paragraph in doc.paragraphs:
-                for key, value in row.items():
-                    paragraph.text = paragraph.text.replace(f"{{{{{key}}}}}", str(value))
-            for table in doc.tables:
-                for row_table in table.rows:
-                    for cell in row_table.cells:
-                        for key, value in row.items():
-                            cell.text = cell.text.replace(f"{{{{{key}}}}}", str(value))
-            filename = f"{prefix}{row.iloc[0]}_{idx}.docx"
-            filepath = os.path.join(output_dir, filename)
-            doc.save(filepath)
-            output_files.append(filepath)
+        selected_rows = parse_row_selection(range_rows, specific_rows, len(df))
+        output_files = generate_documents(excel_path, word_path, prefix, selected_rows)
 
         zip_path = os.path.join(UPLOAD_FOLDER, "output.zip")
         with zipfile.ZipFile(zip_path, "w") as zipf:
