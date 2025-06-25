@@ -2,4 +2,3 @@ flask
 pandas
 python-docx
 werkzeug
-vercel-wsgi

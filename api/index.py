@@ -4,7 +4,6 @@ import pandas as pd
 from docx import Document
 from werkzeug.utils import secure_filename
 import zipfile
-from vercel_wsgi import handle_request
 
 app = Flask(__name__)
 app.secret_key = "secret"
