@@ -5,17 +5,33 @@ from docx import Document
 from werkzeug.utils import secure_filename
 import zipfile
 from functools import wraps
+import base64
 
 app = Flask(__name__)
 app.secret_key = "secret"
 UPLOAD_FOLDER = "/tmp"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-def check_auth(username, password):
-    return (
-        username == os.environ.get("BASIC_AUTH_USERNAME")
-        and password == os.environ.get("BASIC_AUTH_PASSWORD")
-    )
+def check_auth(auth_header):
+    """Controlla se l'header Authorization è valido rispetto a BASIC_AUTH_PASSWORDS"""
+    if not auth_header or not auth_header.startswith("Basic "):
+        return False
+
+    try:
+        # Decodifica credenziali da header base64
+        encoded = auth_header.split(" ", 1)[1].strip()
+        decoded = base64.b64decode(encoded).decode("utf-8")
+        user_input, pwd_input = decoded.split(":", 1)
+    except Exception:
+        return False
+
+    valid_pairs = os.environ.get("BASIC_AUTH_PASSWORDS", "")
+    for line in valid_pairs.strip().split():
+        if ":" in line:
+            valid_user, valid_pwd = line.split(":", 1)
+            if user_input == valid_user and pwd_input == valid_pwd:
+                return True
+    return False
 
 def authenticate():
     return Response(
@@ -26,9 +42,12 @@ def authenticate():
 def requires_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth = request.authorization
-        if not auth or not check_auth(auth.username, auth.password):
-            return authenticate()
+        auth_header = request.headers.get("Authorization")
+        if not check_auth(auth_header):
+            return Response(
+                "Autenticazione richiesta", 401,
+                {"WWW-Authenticate": 'Basic realm="Login Required"'}
+            )
         return f(*args, **kwargs)
     return decorated
 
