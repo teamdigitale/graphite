@@ -76,6 +76,3 @@ def upload():
         return send_file(zip_path, as_attachment=True)
 
     return render_template("upload.html")
-
-def handler(event, context):
-    return handle_request(app, event, context)
