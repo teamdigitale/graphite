@@ -1,31 +1,18 @@
-
-from flask import Flask, request, render_template, redirect, url_for, session, send_file
+from flask import Flask, request, render_template, send_file
 import os
 import pandas as pd
 from docx import Document
 from werkzeug.utils import secure_filename
+import zipfile
 from vercel_wsgi import handle_request
 
 app = Flask(__name__)
-app.secret_key = "supersecretkey"
+app.secret_key = "secret"
 UPLOAD_FOLDER = "/tmp"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 @app.route("/", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        if request.form["username"] == "admin" and request.form["password"] == "password":
-            session["logged_in"] = True
-            return redirect(url_for("upload"))
-        else:
-            return render_template("login.html", error="Credenziali non valide")
-    return render_template("login.html")
-
-@app.route("/upload", methods=["GET", "POST"])
 def upload():
-    if not session.get("logged_in"):
-        return redirect(url_for("login"))
-
     if request.method == "POST":
         excel = request.files.get("excel")
         word = request.files.get("word")
@@ -36,22 +23,21 @@ def upload():
         if not excel or not word:
             return "File mancante", 400
 
-        excel_filename = secure_filename(excel.filename)
-        word_filename = secure_filename(word.filename)
-        excel_path = os.path.join(app.config["UPLOAD_FOLDER"], excel_filename)
-        word_path = os.path.join(app.config["UPLOAD_FOLDER"], word_filename)
+        excel_path = os.path.join(UPLOAD_FOLDER, secure_filename(excel.filename))
+        word_path = os.path.join(UPLOAD_FOLDER, secure_filename(word.filename))
         excel.save(excel_path)
         word.save(word_path)
 
         df = pd.read_excel(excel_path)
-
         rows_to_process = set()
+
         if range_rows:
             try:
                 start, end = map(int, range_rows.split("-"))
-                rows_to_process.update(range(start - 1, end))  # -1 per indicizzazione
+                rows_to_process.update(range(start - 1, end))
             except:
                 pass
+
         if specific_rows:
             try:
                 rows_to_process.update(int(i)-1 for i in specific_rows.split(","))
@@ -61,9 +47,9 @@ def upload():
         if not rows_to_process:
             rows_to_process = range(len(df))
 
-        output_files = []
-        output_dir = os.path.join(app.config["UPLOAD_FOLDER"], "output_docs")
+        output_dir = os.path.join(UPLOAD_FOLDER, "output_docs")
         os.makedirs(output_dir, exist_ok=True)
+        output_files = []
 
         for idx in rows_to_process:
             if idx >= len(df):
@@ -83,7 +69,7 @@ def upload():
             doc.save(filepath)
             output_files.append(filepath)
 
-        zip_path = os.path.join(app.config["UPLOAD_FOLDER"], "output.zip")
+        zip_path = os.path.join(UPLOAD_FOLDER, "output.zip")
         with zipfile.ZipFile(zip_path, "w") as zipf:
             for file in output_files:
                 zipf.write(file, os.path.basename(file))
