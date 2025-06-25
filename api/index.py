@@ -1,16 +1,39 @@
-from flask import Flask, request, render_template, send_file
+from flask import Flask, request, Response, render_template, send_file
 import os
 import pandas as pd
 from docx import Document
 from werkzeug.utils import secure_filename
 import zipfile
+from functools import wraps
 
 app = Flask(__name__)
 app.secret_key = "secret"
 UPLOAD_FOLDER = "/tmp"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+def check_auth(username, password):
+    return (
+        username == os.environ.get("BASIC_AUTH_USERNAME")
+        and password == os.environ.get("BASIC_AUTH_PASSWORD")
+    )
+
+def authenticate():
+    return Response(
+        "Accesso richiesto", 401,
+        {"WWW-Authenticate": 'Basic realm="Login Required"'}
+    )
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
+
 @app.route("/", methods=["GET", "POST"])
+@requires_auth
 def upload():
     if request.method == "POST":
         excel = request.files.get("excel")
