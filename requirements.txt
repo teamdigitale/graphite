@@ -3,3 +3,4 @@ pandas
 python-docx
 openpyxl
 werkzeug
+xlrd==2.0.1

@@ -115,7 +115,12 @@ def upload():
         excel.save(excel_path)
         word.save(word_path)
 
-        df = pd.read_excel(excel_path)
+        ext = os.path.splitext(excel_path)[1].lower()
+        if ext == ".xls":
+            df = pd.read_excel(excel_path, engine="xlrd")
+        else:
+            df = pd.read_excel(excel_path, engine="openpyxl")
+
         selected_rows = parse_row_selection(range_rows, specific_rows, len(df))
         output_files = generate_documents(excel_path, word_path, prefix, selected_rows)
 
