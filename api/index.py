@@ -57,17 +57,24 @@ def generate_documents(excel_path, word_path, prefix, selected_rows):
         row = df.iloc[idx]
         doc = Document(word_path)
 
-        # Sostituzione nei paragrafi
+        # Sostituzione nei paragrafi mantenendo il formato
         for paragraph in doc.paragraphs:
             for key, value in row.items():
-                paragraph.text = paragraph.text.replace(f"{{{{{key}}}}}", str(value))
+                if f"{{{{{key}}}}}" in paragraph.text:
+                    for run in paragraph.runs:  # itera su tutti i run (le parti del paragrafo con stile differente)
+                        if f"{{{{{key}}}}}" in run.text:
+                            run.text = run.text.replace(f"{{{{{key}}}}}", str(value))
 
-        # Sostituzione nelle tabelle
+        # Sostituzione nelle tabelle mantenendo il formato
         for table in doc.tables:
             for row_table in table.rows:
                 for cell in row_table.cells:
                     for key, value in row.items():
-                        cell.text = cell.text.replace(f"{{{{{key}}}}}", str(value))
+                        if f"{{{{{key}}}}}" in cell.text:
+                            for paragraph in cell.paragraphs:
+                                for run in paragraph.runs:
+                                    if f"{{{{{key}}}}}" in run.text:
+                                        run.text = run.text.replace(f"{{{{{key}}}}}", str(value))
 
         filename = f"{prefix}{row.iloc[0]}_{idx}.docx"
         filepath = os.path.join(output_dir, filename)
