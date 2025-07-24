@@ -81,7 +81,15 @@ def generate_documents(excel_path, word_path, prefix, selected_rows):
                     if f"{{{{{key}}}}}" in paragraph.text:
                         for run in paragraph.runs:
                             if f"{{{{{key}}}}}" in run.text:
+                                original_font = run.font
                                 run.text = run.text.replace(f"{{{{{key}}}}}", str(value))
+                                # Ripristina lo stile originale del font
+                                run.font.name = original_font.name
+                                run.font.size = original_font.size
+                                run.font.bold = original_font.bold
+                                run.font.italic = original_font.italic
+                                run.font.underline = original_font.underline
+                                run.font.color.rgb = original_font.color.rgb
         except Exception as e:
             logging.error(f"Errore durante la sostituzione nel paragrafo: {e}")
             raise
@@ -96,7 +104,15 @@ def generate_documents(excel_path, word_path, prefix, selected_rows):
                                 for paragraph in cell.paragraphs:
                                     for run in paragraph.runs:
                                         if f"{{{{{key}}}}}" in run.text:
+                                            original_font = run.font
                                             run.text = run.text.replace(f"{{{{{key}}}}}", str(value))
+                                            # Ripristina lo stile originale del font
+                                            run.font.name = original_font.name
+                                            run.font.size = original_font.size
+                                            run.font.bold = original_font.bold
+                                            run.font.italic = original_font.italic
+                                            run.font.underline = original_font.underline
+                                            run.font.color.rgb = original_font.color.rgb
         except Exception as e:
             logging.error(f"Errore durante la sostituzione nella tabella: {e}")
             raise
