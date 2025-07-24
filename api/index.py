@@ -41,28 +41,33 @@ def requires_auth(f):
 
 # --- GENERAZIONE DOCUMENTI ---
 def replace_placeholders(doc, row):
-    """Sostituisce i placeholder nei paragrafi e nelle celle delle tabelle, mantenendo la formattazione"""
-
     # Paragrafi
     for paragraph in doc.paragraphs:
+        full_text = "".join(run.text for run in paragraph.runs)
         for key, value in row.items():
-            full_placeholder = f"{{{{{key}}}}}"
-            if full_placeholder in paragraph.text:
-                for run in paragraph.runs:
-                    if full_placeholder in run.text:
-                        run.text = run.text.replace(full_placeholder, str(value))
+            placeholder = f"{{{{{key}}}}}"
+            if placeholder in full_text:
+                full_text = full_text.replace(placeholder, str(value))
+        # Aggiorna run uno a uno
+        if paragraph.runs:
+            paragraph.runs[0].text = full_text
+            for run in paragraph.runs[1:]:
+                run.text = ""
 
     # Tabelle
     for table in doc.tables:
         for row_table in table.rows:
             for cell in row_table.cells:
-                for key, value in row.items():
-                    full_placeholder = f"{{{{{key}}}}}"
-                    if full_placeholder in cell.text:
-                        for paragraph in cell.paragraphs:
-                            for run in paragraph.runs:
-                                if full_placeholder in run.text:
-                                    run.text = run.text.replace(full_placeholder, str(value))
+                for paragraph in cell.paragraphs:
+                    full_text = "".join(run.text for run in paragraph.runs)
+                    for key, value in row.items():
+                        placeholder = f"{{{{{key}}}}}"
+                        if placeholder in full_text:
+                            full_text = full_text.replace(placeholder, str(value))
+                    if paragraph.runs:
+                        paragraph.runs[0].text = full_text
+                        for run in paragraph.runs[1:]:
+                            run.text = ""
 
 def generate_documents(df, word_path, prefix, selected_rows):
     output_dir = os.path.join(UPLOAD_FOLDER, "output_docs")
