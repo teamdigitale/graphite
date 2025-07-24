@@ -51,7 +51,7 @@ def requires_auth(f):
 # --- GENERAZIONE DOCUMENTI ---
 def generate_documents(excel_path, word_path, prefix, selected_rows):
     logging.debug("Inizio generazione documenti")
-
+    
     try:
         df = pd.read_excel(excel_path)
         logging.debug(f"File Excel caricato: {excel_path}")
@@ -80,23 +80,9 @@ def generate_documents(excel_path, word_path, prefix, selected_rows):
             for paragraph in doc.paragraphs:
                 for key, value in row.items():
                     if f"{{{{{key}}}}}" in paragraph.text:
-                        # Elenco dei runs del paragrafo
                         for run in paragraph.runs:
                             if f"{{{{{key}}}}}" in run.text:
-                                # Creiamo un nuovo run con il testo sostituito
-                                start_pos = run.text.find(f"{{{{{key}}}}}")
-                                end_pos = start_pos + len(f"{{{{{key}}}}}")
-                                # Dividiamo il run in due parti: prima e dopo il segnaposto
-                                run.text = run.text[:start_pos] + str(value) + run.text[end_pos:]
-
-                                # Conserviamo le proprietà del font originale
-                                original_font = run.font
-                                run.font.name = original_font.name
-                                run.font.size = original_font.size
-                                run.font.bold = original_font.bold
-                                run.font.italic = original_font.italic
-                                run.font.underline = original_font.underline
-                                run.font.color.rgb = original_font.color.rgb
+                                run.text = run.text.replace(f"{{{{{key}}}}}", str(value))
         except Exception as e:
             logging.error(f"Errore durante la sostituzione nel paragrafo: {e}")
             raise
@@ -111,19 +97,7 @@ def generate_documents(excel_path, word_path, prefix, selected_rows):
                                 for paragraph in cell.paragraphs:
                                     for run in paragraph.runs:
                                         if f"{{{{{key}}}}}" in run.text:
-                                            # Creiamo un nuovo run con il testo sostituito
-                                            start_pos = run.text.find(f"{{{{{key}}}}}")
-                                            end_pos = start_pos + len(f"{{{{{key}}}}}")
-                                            run.text = run.text[:start_pos] + str(value) + run.text[end_pos:]
-
-                                            # Conserviamo le proprietà del font originale
-                                            original_font = run.font
-                                            run.font.name = original_font.name
-                                            run.font.size = original_font.size
-                                            run.font.bold = original_font.bold
-                                            run.font.italic = original_font.italic
-                                            run.font.underline = original_font.underline
-                                            run.font.color.rgb = original_font.color.rgb
+                                            run.text = run.text.replace(f"{{{{{key}}}}}", str(value))
         except Exception as e:
             logging.error(f"Errore durante la sostituzione nella tabella: {e}")
             raise
