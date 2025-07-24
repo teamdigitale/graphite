@@ -7,7 +7,6 @@ import zipfile
 from functools import wraps
 import base64
 import logging
-from docx import Document
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -169,3 +168,7 @@ def upload():
         return send_file(zip_path, as_attachment=True)
 
     return render_template("upload.html")
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
