@@ -6,6 +6,9 @@ from werkzeug.utils import secure_filename
 import zipfile
 from functools import wraps
 import base64
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__)
 app.secret_key = "secret"
@@ -46,33 +49,66 @@ def requires_auth(f):
 
 # --- GENERAZIONE DOCUMENTI ---
 def generate_documents(excel_path, word_path, prefix, selected_rows):
-    df = pd.read_excel(excel_path)
+    logging.debug("Inizio generazione documenti")
+    
+    try:
+        df = pd.read_excel(excel_path)
+        logging.debug(f"File Excel caricato: {excel_path}")
+    except Exception as e:
+        logging.error(f"Errore nel caricamento del file Excel: {e}")
+        raise
+
     output_dir = os.path.join(UPLOAD_FOLDER, "output_docs")
     os.makedirs(output_dir, exist_ok=True)
     output_files = []
 
     for idx in selected_rows:
         if idx >= len(df):
+            logging.warning(f"Riga {idx} fuori intervallo")
             continue
         row = df.iloc[idx]
-        doc = Document(word_path)
+        try:
+            doc = Document(word_path)
+            logging.debug(f"Documento Word caricato: {word_path}")
+        except Exception as e:
+            logging.error(f"Errore nel caricamento del documento Word: {e}")
+            raise
 
-        # Sostituzione nei paragrafi
-        for paragraph in doc.paragraphs:
-            for key, value in row.items():
-                paragraph.text = paragraph.text.replace(f"{{{{{key}}}}}", str(value))
+        # Sostituzione nei paragrafi mantenendo il formato
+        try:
+            for paragraph in doc.paragraphs:
+                for key, value in row.items():
+                    if f"{{{{{key}}}}}" in paragraph.text:
+                        for run in paragraph.runs:
+                            if f"{{{{{key}}}}}" in run.text:
+                                run.text = run.text.replace(f"{{{{{key}}}}}", str(value))
+        except Exception as e:
+            logging.error(f"Errore durante la sostituzione nel paragrafo: {e}")
+            raise
 
-        # Sostituzione nelle tabelle
-        for table in doc.tables:
-            for row_table in table.rows:
-                for cell in row_table.cells:
-                    for key, value in row.items():
-                        cell.text = cell.text.replace(f"{{{{{key}}}}}", str(value))
+        # Sostituzione nelle tabelle mantenendo il formato
+        try:
+            for table in doc.tables:
+                for row_table in table.rows:
+                    for cell in row_table.cells:
+                        for key, value in row.items():
+                            if f"{{{{{key}}}}}" in cell.text:
+                                for paragraph in cell.paragraphs:
+                                    for run in paragraph.runs:
+                                        if f"{{{{{key}}}}}" in run.text:
+                                            run.text = run.text.replace(f"{{{{{key}}}}}", str(value))
+        except Exception as e:
+            logging.error(f"Errore durante la sostituzione nella tabella: {e}")
+            raise
 
         filename = f"{prefix}{row.iloc[0]}_{idx}.docx"
         filepath = os.path.join(output_dir, filename)
-        doc.save(filepath)
-        output_files.append(filepath)
+        try:
+            doc.save(filepath)
+            output_files.append(filepath)
+        except Exception as e:
+            logging.error(f"Errore durante il salvataggio del documento: {e}")
+            raise
 
     return output_files
 
