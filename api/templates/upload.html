@@ -97,7 +97,19 @@
                     <p class="mb-3 pt-2 lora">Prefisso file: <input type="text" name="prefix"></p>
                     <p class="mb-3 pt-2 lora">Range righe (es. 2-5): <input type="text" name="range_rows"></p>
                     <p class="mb-3 pt-2 lora">Righe specifiche (es. 1,3,7): <input type="text" name="specific_rows"></p>
-                    <button class="btn btn-primary btn-sm" type="submit">Genera</button>
+                    
+                    <div class="select-wrapper mt-5 lora">
+                     <label for="defaultSelect">Seleziona Font da usare nella sostituzione:</label>
+                     <select id="defaultSelect" name="font" class="form-control" required>
+                        <option selected="" value="">Scegli un'opzione</option>
+                        <option value="Titillium Web">Titillium Web</option>
+                        <option value="Arial">Arial</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Verdana">Verdana</option>
+                     </select>
+                     </div>
+                    
+                    <button class="btn btn-primary btn-sm mt-5" type="submit">Genera</button>
                   </form>
                   </nav>
                </div>

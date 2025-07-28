@@ -16,6 +16,7 @@ UPLOAD_FOLDER = "/tmp"
 
 # --- AUTENTICAZIONE BASIC ---
 def check_auth(auth_header: str) -> bool:
+##    return True
     """Verifica header Basic Auth rispetto a variabili ambiente BASIC_AUTH_PASSWORDS"""
     if not auth_header or not auth_header.startswith("Basic "):
         return False
@@ -48,68 +49,57 @@ def requires_auth(f):
     return decorated
 
 # --- GENERAZIONE DOCUMENTI ---
-def generate_documents(excel_path, word_path, prefix, selected_rows):
-    logging.debug("Inizio generazione documenti")
-    
-    try:
-        df = pd.read_excel(excel_path)
-        logging.debug(f"File Excel caricato: {excel_path}")
-    except Exception as e:
-        logging.error(f"Errore nel caricamento del file Excel: {e}")
-        raise
-
+def generate_documents(excel_path, word_path, prefix, selected_rows, font):
+    df = pd.read_excel(excel_path)
     output_dir = os.path.join(UPLOAD_FOLDER, "output_docs")
     os.makedirs(output_dir, exist_ok=True)
     output_files = []
 
     for idx in selected_rows:
         if idx >= len(df):
-            logging.warning(f"Riga {idx} fuori intervallo")
             continue
         row = df.iloc[idx]
-        try:
-            doc = Document(word_path)
-            logging.debug(f"Documento Word caricato: {word_path}")
-        except Exception as e:
-            logging.error(f"Errore nel caricamento del documento Word: {e}")
-            raise
+        doc = Document(word_path)
 
-        # Sostituzione nei paragrafi mantenendo il formato
-        try:
-            for paragraph in doc.paragraphs:
-                for key, value in row.items():
-                    if f"{{{{{key}}}}}" in paragraph.text:
-                        for run in paragraph.runs:
-                            if f"{{{{{key}}}}}" in run.text:
-                                run.text = run.text.replace(f"{{{{{key}}}}}", str(value))
-        except Exception as e:
-            logging.error(f"Errore durante la sostituzione nel paragrafo: {e}")
-            raise
+        # Sostituzione nei paragrafi
+        for paragraph in doc.paragraphs:
+            for key, value in row.items():
+                key_name = f"{{{{{key}}}}}"  # Crea il segnaposto nel formato {{KEY}}
+                
+                # Se il valore è NaN, sostituirlo con una stringa vuota
+                if pd.isna(value):
+                    value = "_____________"
 
-        # Sostituzione nelle tabelle mantenendo il formato
-        try:
-            for table in doc.tables:
-                for row_table in table.rows:
-                    for cell in row_table.cells:
-                        for key, value in row.items():
-                            if f"{{{{{key}}}}}" in cell.text:
-                                for paragraph in cell.paragraphs:
-                                    for run in paragraph.runs:
-                                        if f"{{{{{key}}}}}" in run.text:
-                                            run.text = run.text.replace(f"{{{{{key}}}}}", str(value))
-        except Exception as e:
-            logging.error(f"Errore durante la sostituzione nella tabella: {e}")
-            raise
+                if key_name in paragraph.text:
+                    paragraph.text = paragraph.text.replace(key_name, str(value))
+                    # Itera attraverso i 'run' nel paragrafo
+                    for run in paragraph.runs:
+                        run.font.name = font
 
+        # Itera attraverso le tabelle
+        for table in doc.tables:
+            for row_table in table.rows:
+                for cell in row_table.cells:
+                    for key, value in row.items():
+                        key_name = f"{{{{{key}}}}}"
+                        
+                        # Se il valore è NaN, sostituirlo con una stringa vuota
+                        if pd.isna(value):
+                            value = "______________"
+
+                        if key_name in cell.text:
+                            cell.text = cell.text.replace(key_name, str(value))
+
+                            for paragraph in cell.paragraphs:
+                                for run in paragraph.runs:
+                                    run.font.name = font
+     
         filename = f"{prefix}{row.iloc[0]}_{idx}.docx"
         filepath = os.path.join(output_dir, filename)
-        try:
-            doc.save(filepath)
-            output_files.append(filepath)
-        except Exception as e:
-            logging.error(f"Errore durante il salvataggio del documento: {e}")
-            raise
-
+        doc.save(filepath)
+        output_files.append(filepath)
+    
+    print(f"File generati: {output_files}")  # Controllo di debug
     return output_files
 
 def parse_row_selection(range_rows, specific_rows, total_rows):
@@ -130,7 +120,12 @@ def parse_row_selection(range_rows, specific_rows, total_rows):
         except Exception:
             pass
 
-    return selected if selected else range(total_rows)
+    # Se non ci sono selezioni, seleziona tutte le righe
+    if not selected:
+        selected = set(range(total_rows))
+
+    print(f"Righe selezionate: {selected}")  # Aggiungi un controllo per il debug
+    return selected
 
 # --- ROUTE PRINCIPALE ---
 @app.route("/", methods=["GET", "POST"])
@@ -142,6 +137,7 @@ def upload():
         prefix = request.form.get("prefix", "")
         range_rows = request.form.get("range_rows", "")
         specific_rows = request.form.get("specific_rows", "")
+        font = request.form.get("font", "Titillium Web")
 
         if not excel or not word:
             return "File Excel o Word mancante.", 400
@@ -158,7 +154,9 @@ def upload():
             df = pd.read_excel(excel_path, engine="openpyxl")
 
         selected_rows = parse_row_selection(range_rows, specific_rows, len(df))
-        output_files = generate_documents(excel_path, word_path, prefix, selected_rows)
+        output_files = generate_documents(excel_path, word_path, prefix, selected_rows, font)
+
+        print(f"File da aggiungere allo zip: {output_files}")  # Controllo di debug
 
         zip_path = os.path.join(UPLOAD_FOLDER, "output.zip")
         with zipfile.ZipFile(zip_path, "w") as zipf:
@@ -168,7 +166,3 @@ def upload():
         return send_file(zip_path, as_attachment=True)
 
     return render_template("upload.html")
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
